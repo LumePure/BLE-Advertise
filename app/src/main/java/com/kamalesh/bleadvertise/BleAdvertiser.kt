@@ -72,7 +72,7 @@ class BleAdvertiser(context: Context) {
         val parameters = AdvertisingSetParameters.Builder()
             .setLegacyMode(true)
             .setConnectable(false)
-            .setScanable(payload.scanable)
+            .setScannable(payload.scanable)
             .setInterval(AdvertisingSetParameters.INTERVAL_MIN)
             .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
             .setPrimaryPhy(BluetoothDevice.PHY_LE_1M)
