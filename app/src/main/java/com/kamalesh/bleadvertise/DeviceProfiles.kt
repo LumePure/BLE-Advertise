@@ -126,4 +126,13 @@ object DeviceProfiles {
     )
 
     fun getById(id: String): DeviceProfile? = profiles.firstOrNull { it.id == id }
+
+    fun findByModelId(modelIdHex: String): DeviceProfile? {
+        val target = modelIdHex.uppercase().replace(" ", "")
+        return profiles.firstOrNull {
+            it.payload.serviceData?.let { data ->
+                HexUtils.toHexString(data).uppercase() == target
+            } == true
+        }
+    }
 }

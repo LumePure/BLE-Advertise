@@ -23,6 +23,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnToggle: MaterialButton
     private lateinit var tvSelected: TextView
     private lateinit var tvStatus: TextView
+    private lateinit var btnScan: MaterialButton
 
     private var selectedProfile: DeviceProfile? = null
     private var advertising = false
@@ -41,11 +42,15 @@ class MainActivity : AppCompatActivity() {
         btnToggle = findViewById(R.id.btnToggle)
         tvSelected = findViewById(R.id.tvSelected)
         tvStatus = findViewById(R.id.tvStatus)
+        btnScan = findViewById(R.id.btnScan)
 
         buildDeviceList()
         requestPermissionsIfNeeded()
 
         btnToggle.setOnClickListener { toggleAdvertising() }
+        btnScan.setOnClickListener {
+            startActivity(Intent(this, ScanActivity::class.java))
+        }
     }
 
     override fun onResume() {
