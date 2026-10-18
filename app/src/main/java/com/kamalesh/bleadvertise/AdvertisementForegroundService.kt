@@ -64,7 +64,7 @@ class AdvertisementForegroundService : Service() {
                 }
 
                 override fun onAdvertisingFailed(reason: String) {
-                    updateNotification("Error: $reason")
+                    updateNotification(getString(R.string.notification_error, reason))
                 }
             }
         }
@@ -134,7 +134,7 @@ class AdvertisementForegroundService : Service() {
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "BLE advertising",
+            getString(R.string.notification_channel_name),
             NotificationManager.IMPORTANCE_LOW
         )
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
@@ -157,7 +157,7 @@ class AdvertisementForegroundService : Service() {
             .setSmallIcon(R.drawable.ic_stat_ble)
             .setContentIntent(contentIntent)
             .setOngoing(true)
-            .addAction(0, "Stop", stopIntent)
+            .addAction(R.drawable.ic_stop, getString(R.string.notification_stop), stopIntent)
             .build()
     }
 

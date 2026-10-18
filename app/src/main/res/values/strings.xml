@@ -1,35 +1,75 @@
 <resources>
-    <string name="app_name">BLE Advertise</string>
-    <string name="app_subtitle">Advertise a fake BLE device to nearby phones and trigger the Fast Pair / pairing popup for that device. Educational and security-testing use only.</string>
-    <string name="selected_device">Selected device</string>
-    <string name="none_selected">None selected</string>
-    <string name="start_advertising">Start Advertising</string>
-    <string name="stop_advertising">Stop Advertising</string>
-    <string name="not_advertising">Not advertising</string>
-    <string name="advertising_in_progress">Advertising</string>
-    <string name="pick_device">Pick a device to spoof</string>
-    <string name="pick_device_first">Select a device to advertise first</string>
-    <string name="bluetooth_permission_required">Bluetooth permission required</string>
-    <string name="enable_bluetooth_hint">Please enable Bluetooth, then tap Start again</string>
-    <string name="scan_for_devices">Scan for Nearby Devices</string>
-    <string name="nearby_devices">Nearby Devices</string>
-    <string name="start_scan">Start Scan</string>
-    <string name="stop_scan">Stop Scan</string>
-    <string name="scanning">Scanning…</string>
-    <string name="no_devices_found">No devices found yet</string>
-    <string name="devices_found">%1$d devices found</string>
-    <string name="unknown_device">Unknown device</string>
-    <string name="scan_permission_required">Scan permission is required</string>
-    <string name="ble_not_supported">BLE scanning is not supported on this device</string>
-    <string name="protocol_fast_pair">Fast Pair</string>
+    <string name="app_name">BLE 广播</string>
+    <string name="app_tagline">蓝牙低功耗广播模拟</string>
+    <string name="app_subtitle">向附近手机广播虚拟 BLE 设备，触发对应品牌的配对弹窗。仅供学习与安全测试使用。</string>
+
+    <!-- 主页 -->
+    <string name="selected_device">当前设备</string>
+    <string name="none_selected">尚未选择设备</string>
+    <string name="section_select_device">选择要模拟的设备</string>
+    <string name="start_advertising">开始广播</string>
+    <string name="stop_advertising">停止广播</string>
+    <string name="not_advertising">未在广播</string>
+    <string name="advertising_in_progress">正在广播…</string>
+    <string name="pick_device">挑选一个要模拟的设备</string>
+    <string name="pick_device_first">请先选择一个要广播的设备</string>
+    <string name="bluetooth_permission_required">需要蓝牙权限</string>
+    <string name="enable_bluetooth_hint">请先开启蓝牙，然后再次点击「开始广播」</string>
+
+    <!-- 扫描页 -->
+    <string name="scan_for_devices">扫描附近设备</string>
+    <string name="nearby_devices">附近设备</string>
+    <string name="scan_subtitle">发现周围的 BLE 广播，并一键模拟同款设备</string>
+    <string name="start_scan">开始扫描</string>
+    <string name="stop_scan">停止扫描</string>
+    <string name="scanning">正在扫描…</string>
+    <string name="no_devices_found">暂未发现设备</string>
+    <string name="devices_found">已发现 %1$d 个设备</string>
+    <string name="unknown_device">未知设备</string>
+    <string name="scan_permission_required">需要扫描权限</string>
+    <string name="ble_not_supported">此设备不支持 BLE 扫描</string>
+    <string name="back">返回</string>
+    <string name="scan_spoofable">可模拟</string>
+    <string name="scan_protocol_spoofable">%1$s · 可模拟</string>
+    <string name="scan_signal_strength">%1$d dBm</string>
+    <string name="scan_failed">扫描失败（代码 %1$d）</string>
+    <string name="scan_empty_hint">点击「开始扫描」发现附近的 BLE 广播</string>
+
+    <!-- 协议 -->
+    <string name="protocol_fast_pair">Google Fast Pair</string>
     <string name="protocol_apple">Apple Continuity</string>
     <string name="protocol_samsung">Samsung Easy Setup</string>
-    <string name="protocol_swift">Swift Pair</string>
-    <string name="cancel">Cancel</string>
-    <string name="advertise_action">Advertise %1$s</string>
-    <string name="advertising_started">Advertising started</string>
-    <string name="message_address">Address: %1$s</string>
-    <string name="message_rssi">Signal: %1$d dBm</string>
-    <string name="message_protocol">Protocol: %1$s</string>
-    <string name="message_model_id">Fast Pair model ID: %1$s</string>
+    <string name="protocol_swift">Microsoft Swift Pair</string>
+    <string name="protocol_short_fast_pair">Fast Pair</string>
+    <string name="protocol_short_apple">AirPods</string>
+    <string name="protocol_short_samsung">三星</string>
+    <string name="protocol_short_swift">Swift Pair</string>
+    <string name="filter_all">全部</string>
+    <string name="search_hint">搜索设备…</string>
+    <string name="empty_result">没有匹配的设备</string>
+    <string name="device_count">%1$d 款</string>
+    <string name="device_subtitle_model">%1$s · 型号 ID %2$s</string>
+    <string name="device_subtitle_protocol">%1$s · %2$s</string>
+    <string name="selected_meta_fast_pair">%1$s · 型号 ID %2$s</string>
+    <string name="selected_meta_generic">%1$s · %2$s</string>
+
+    <!-- 通用 -->
+    <string name="cancel">取消</string>
+    <string name="advertise_action">广播 %1$s</string>
+    <string name="advertising_started">已开始广播</string>
+    <string name="message_address">地址：%1$s</string>
+    <string name="message_rssi">信号：%1$d dBm</string>
+    <string name="message_protocol">协议：%1$s</string>
+    <string name="message_model_id">Fast Pair 型号 ID：%1$s</string>
+
+    <!-- 通知 -->
+    <string name="notification_channel_name">BLE 广播</string>
+    <string name="notification_stop">停止</string>
+    <string name="notification_error">错误：%1$s</string>
+
+    <!-- 关于 -->
+    <string name="about">关于</string>
+    <string name="about_title">关于本应用</string>
+    <string name="about_message">BLE 广播是一款用于学习与安全测试的工具，可模拟 Google Fast Pair、Apple Continuity、Samsung Easy Setup 与 Microsoft Swift Pair 的广播特征，从而在附近手机上触发对应的配对弹窗。\n\n蓝牙广播是单向的：接收到广播的手机绝不会因此向广播方开放麦克风、相机、存储或任何数据。请仅在你自己拥有或控制的设备上使用，切勿用于骚扰他人。</string>
+    <string name="got_it">知道了</string>
 </resources>

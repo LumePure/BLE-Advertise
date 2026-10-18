@@ -1,33 +1,60 @@
 package com.kamalesh.bleadvertise
 
 import android.Manifest
+import android.animation.ArgbEvaluator
+import android.animation.ObjectAnimator
+import android.animation.PropertyValuesHolder
+import android.animation.ValueAnimator
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
-import android.widget.LinearLayout
+import android.view.View
+import android.view.animation.AccelerateDecelerateInterpolator
+import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.widget.doAfterTextChanged
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
+import com.google.android.material.textfield.TextInputEditText
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var container: LinearLayout
+    private lateinit var statusCard: MaterialCardView
+    private lateinit var pulseDot: View
     private lateinit var btnToggle: MaterialButton
-    private lateinit var tvSelected: TextView
-    private lateinit var tvStatus: TextView
     private lateinit var btnScan: MaterialButton
+    private lateinit var btnAbout: ImageButton
+    private lateinit var tvSelected: TextView
+    private lateinit var tvSelectedMeta: TextView
+    private lateinit var ivSelectedIcon: ImageView
+    private lateinit var tvStatus: TextView
+    private lateinit var rvDevices: RecyclerView
+    private lateinit var filterChips: ChipGroup
+    private lateinit var etSearch: TextInputEditText
+    private lateinit var emptyState: View
+
+    private lateinit var adapter: DeviceAdapter
 
     private var selectedProfile: DeviceProfile? = null
     private var advertising = false
-    private val profileButtons = mutableMapOf<String, MaterialButton>()
+    private var filterProtocol: Protocol? = null
+    private var query: String = ""
+    private var cardAnimator: ValueAnimator? = null
+    private var pulseAnimator: ObjectAnimator? = null
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -38,28 +65,100 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        container = findViewById(R.id.container)
+        statusCard = findViewById(R.id.statusCard)
+        pulseDot = findViewById(R.id.pulseDot)
         btnToggle = findViewById(R.id.btnToggle)
-        tvSelected = findViewById(R.id.tvSelected)
-        tvStatus = findViewById(R.id.tvStatus)
         btnScan = findViewById(R.id.btnScan)
+        btnAbout = findViewById(R.id.btnAbout)
+        tvSelected = findViewById(R.id.tvSelected)
+        tvSelectedMeta = findViewById(R.id.tvSelectedMeta)
+        ivSelectedIcon = findViewById(R.id.ivSelectedIcon)
+        tvStatus = findViewById(R.id.tvStatus)
+        rvDevices = findViewById(R.id.rvDevices)
+        filterChips = findViewById(R.id.filterChips)
+        etSearch = findViewById(R.id.etSearch)
+        emptyState = findViewById(R.id.emptyState)
 
-        buildDeviceList()
-        requestPermissionsIfNeeded()
+        adapter = DeviceAdapter(
+            selectedId = { selectedProfile?.id },
+            onClick = { profile -> selectProfile(profile) }
+        )
+        rvDevices.layoutManager = LinearLayoutManager(this)
+        rvDevices.adapter = adapter
+
+        buildFilterChips()
+        etSearch.doAfterTextChanged {
+            query = it?.toString()?.trim().orEmpty()
+            refreshList()
+        }
 
         btnToggle.setOnClickListener { toggleAdvertising() }
-        btnScan.setOnClickListener {
-            startActivity(Intent(this, ScanActivity::class.java))
-        }
+        btnScan.setOnClickListener { startActivity(Intent(this, ScanActivity::class.java)) }
+        btnAbout.setOnClickListener { showAbout() }
+
+        requestPermissionsIfNeeded()
+        refreshList()
     }
 
     override fun onResume() {
         super.onResume()
         advertising = AdvertisementForegroundService.isRunning
         AdvertisementForegroundService.currentDeviceId?.let { id ->
-            DeviceProfiles.getById(id)?.let { selectProfile(it) }
+            DeviceProfiles.getById(id)?.let { selectedProfile = it }
         }
+        refreshList()
         updateUi()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        stopPulse()
+    }
+
+    private fun buildFilterChips() {
+        DeviceProfiles.categories.forEach { protocol ->
+            val chip = Chip(this).apply {
+                id = View.generateViewId()
+                tag = protocol
+                isCheckable = true
+                text = getString(ProtocolUi.shortLabel(protocol)) +
+                    " · " + DeviceProfiles.countOf(protocol)
+            }
+            filterChips.addView(chip)
+        }
+        filterChips.setOnCheckedStateChangeListener { _, checked ->
+            val protocol = checked.mapNotNull { id -> filterChips.findViewById<Chip>(id)?.tag }
+                .filterIsInstance<Protocol>()
+                .firstOrNull()
+            filterProtocol = protocol
+            refreshList()
+        }
+    }
+
+    private fun refreshList() {
+        val needle = query.lowercase()
+        val items = mutableListOf<DeviceListItem>()
+
+        DeviceProfiles.categories.forEach { protocol ->
+            if (filterProtocol != null && filterProtocol != protocol) return@forEach
+            val matching = DeviceProfiles.profiles.filter { it.protocol == protocol }
+                .filter { matches(it, needle) }
+            if (matching.isEmpty()) return@forEach
+            items += DeviceListItem.Header(protocol, matching.size)
+            items += matching.map { DeviceListItem.Device(it) }
+        }
+
+        adapter.submitList(items)
+        emptyState.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
+        rvDevices.visibility = if (items.isEmpty()) View.GONE else View.VISIBLE
+    }
+
+    private fun matches(profile: DeviceProfile, needle: String): Boolean {
+        if (needle.isEmpty()) return true
+        return profile.title.lowercase().contains(needle) ||
+            profile.subtitle.lowercase().contains(needle) ||
+            getString(ProtocolUi.label(profile.protocol)).lowercase().contains(needle) ||
+            profile.payload.serviceData?.let { HexUtils.toHexString(it).lowercase().contains(needle) } == true
     }
 
     private fun requiredPermissions(): List<String> {
@@ -87,47 +186,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun buildDeviceList() {
-        var lastCategory: String? = null
-        DeviceProfiles.profiles.forEach { profile ->
-            if (profile.category != lastCategory) {
-                lastCategory = profile.category
-                container.addView(makeHeader(profile.category))
-            }
-            container.addView(makeDeviceButton(profile))
-        }
-    }
-
-    private fun makeHeader(title: String): TextView {
-        return TextView(this).apply {
-            text = title
-            setTextSize(14f)
-            setTypeface(null, Typeface.BOLD)
-            setTextColor(0xFF757575.toInt())
-            setPadding(dp(0), dp(16), dp(0), dp(4))
-        }
-    }
-
-    private fun makeDeviceButton(profile: DeviceProfile): MaterialButton {
-        val button = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle)
-        button.apply {
-            text = "${profile.title} (${profile.subtitle})"
-            isAllCaps = false
-            isCheckable = true
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(4) }
-            setOnClickListener { selectProfile(profile) }
-        }
-        profileButtons[profile.id] = button
-        return button
-    }
-
     private fun selectProfile(profile: DeviceProfile) {
+        if (selectedProfile?.id == profile.id) {
+            // 再次点击已选中的设备时直接切换广播状态
+            toggleAdvertising()
+            return
+        }
         selectedProfile = profile
-        profileButtons.forEach { (id, button) -> button.isChecked = id == profile.id }
+        adapter.refreshSelection()
         updateUi()
+        if (advertising) {
+            AdvertisementForegroundService.start(this, profile.id)
+        }
     }
 
     private fun toggleAdvertising() {
@@ -160,13 +230,83 @@ class MainActivity : AppCompatActivity() {
         return manager.adapter?.isEnabled == true
     }
 
-    private fun updateUi() {
-        val profile = selectedProfile
-        tvSelected.text = profile?.let { "${it.title} (${it.subtitle})" } ?: getString(R.string.none_selected)
-        btnToggle.text = if (advertising) getString(R.string.stop_advertising) else getString(R.string.start_advertising)
-        tvStatus.text = if (advertising) getString(R.string.advertising_in_progress) else getString(R.string.not_advertising)
-        tvStatus.setTextColor(if (advertising) 0xFF1B5E20.toInt() else 0xFF757575.toInt())
+    private fun showAbout() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.about_title)
+            .setMessage(R.string.about_message)
+            .setPositiveButton(R.string.got_it, null)
+            .show()
     }
 
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+    private fun updateUi() {
+        val profile = selectedProfile
+
+        tvSelected.text = profile?.title ?: getString(R.string.none_selected)
+        ivSelectedIcon.visibility = if (profile != null) View.VISIBLE else View.GONE
+        profile?.let { ivSelectedIcon.setImageResource(ProtocolUi.iconFor(it)) }
+
+        if (profile != null) {
+            val modelId = profile.payload.serviceData?.let { HexUtils.toHexString(it) }
+            tvSelectedMeta.text = if (modelId != null) {
+                getString(R.string.selected_meta_fast_pair, profile.subtitle, modelId)
+            } else {
+                getString(R.string.selected_meta_generic,
+                    profile.subtitle, getString(ProtocolUi.label(profile.protocol)))
+            }
+            tvSelectedMeta.visibility = View.VISIBLE
+        } else {
+            tvSelectedMeta.visibility = View.GONE
+        }
+
+        btnToggle.setText(if (advertising) R.string.stop_advertising else R.string.start_advertising)
+        btnToggle.setIconResource(if (advertising) R.drawable.ic_stop else R.drawable.ic_play)
+        tvStatus.setText(if (advertising) R.string.advertising_in_progress else R.string.not_advertising)
+
+        animateStatus(advertising)
+    }
+
+    /** 状态卡片在「广播中」与「空闲」之间做颜色与脉冲过渡。 */
+    private fun animateStatus(live: Boolean) {
+        val liveBg = ContextCompat.getColor(this, R.color.status_live_bg)
+        val idleBg = ContextCompat.getColor(this, R.color.brand_primary_container)
+        val target = if (live) liveBg else idleBg
+
+        cardAnimator?.cancel()
+        cardAnimator = ValueAnimator.ofObject(
+            ArgbEvaluator(),
+            (statusCard.cardBackgroundColor?.defaultColor ?: idleBg),
+            target
+        ).apply {
+            duration = 320
+            interpolator = AccelerateDecelerateInterpolator()
+            addUpdateListener { statusCard.setCardBackgroundColor(it.animatedValue as Int) }
+            start()
+        }
+
+        if (live) startPulse() else stopPulse()
+    }
+
+    private fun startPulse() {
+        if (pulseAnimator?.isRunning == true) return
+        pulseAnimator = ObjectAnimator.ofPropertyValuesHolder(
+            pulseDot,
+            PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.55f),
+            PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.55f),
+            PropertyValuesHolder.ofFloat(View.ALPHA, 1f, 0.4f)
+        ).apply {
+            duration = 800
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            interpolator = AccelerateDecelerateInterpolator()
+            start()
+        }
+    }
+
+    private fun stopPulse() {
+        pulseAnimator?.cancel()
+        pulseAnimator = null
+        pulseDot.scaleX = 1f
+        pulseDot.scaleY = 1f
+        pulseDot.alpha = 1f
+    }
 }

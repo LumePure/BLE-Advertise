@@ -13,21 +13,29 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.ParcelUuid
-import android.widget.LinearLayout
+import android.view.View
+import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import java.util.UUID
 
 class ScanActivity : AppCompatActivity() {
 
-    private lateinit var container: LinearLayout
+    private lateinit var rvResults: RecyclerView
     private lateinit var btnScan: MaterialButton
+    private lateinit var btnBack: ImageButton
     private lateinit var tvStatus: TextView
+    private lateinit var tvEmpty: TextView
+    private lateinit var emptyState: View
+
+    private lateinit var adapter: ScanAdapter
 
     private var scanning = false
     private val devices = LinkedHashMap<String, ScanResult>()
@@ -60,7 +68,8 @@ class ScanActivity : AppCompatActivity() {
             runOnUiThread {
                 scanning = false
                 updateUi()
-                Toast.makeText(this@ScanActivity, "Scan failed (code $errorCode)", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@ScanActivity,
+                    getString(R.string.scan_failed, errorCode), Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -69,13 +78,25 @@ class ScanActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_scan)
 
-        container = findViewById(R.id.container)
+        rvResults = findViewById(R.id.rvResults)
         btnScan = findViewById(R.id.btnScan)
+        btnBack = findViewById(R.id.btnBack)
         tvStatus = findViewById(R.id.tvStatus)
+        tvEmpty = findViewById(R.id.tvEmpty)
+        emptyState = findViewById(R.id.emptyState)
+
+        adapter = ScanAdapter { position ->
+            sortedResults().getOrNull(position)?.let { onDeviceTapped(it) }
+        }
+        rvResults.layoutManager = LinearLayoutManager(this)
+        rvResults.adapter = adapter
 
         btnScan.setOnClickListener {
             if (scanning) stopScan() else requestScanPermissions()
         }
+        btnBack.setOnClickListener { finish() }
+
+        updateUi()
     }
 
     override fun onPause() {
@@ -125,51 +146,60 @@ class ScanActivity : AppCompatActivity() {
             return
         }
         devices.clear()
-        container.removeAllViews()
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
         scanning = true
-        scanner.startScan(null, settings, scanCallback)
-        updateUi()
+        try {
+            scanner.startScan(null, settings, scanCallback)
+        } catch (e: SecurityException) {
+            scanning = false
+            Toast.makeText(this, R.string.scan_permission_required, Toast.LENGTH_LONG).show()
+        }
+        render()
     }
 
     private fun stopScan() {
-        scanner?.stopScan(scanCallback)
+        try {
+            scanner?.stopScan(scanCallback)
+        } catch (e: SecurityException) {
+            // 忽略：权限缺失时无法停止，也不影响界面
+        }
         scanning = false
         updateUi()
     }
 
+    private fun sortedResults(): List<ScanResult> =
+        devices.values.sortedByDescending { it.rssi }
+
     private fun updateUi() {
-        btnScan.text = if (scanning) getString(R.string.stop_scan) else getString(R.string.start_scan)
+        btnScan.setText(if (scanning) R.string.stop_scan else R.string.start_scan)
+        btnScan.setIconResource(if (scanning) R.drawable.ic_stop else R.drawable.ic_scan)
         tvStatus.text = when {
             scanning -> getString(R.string.scanning)
             devices.isEmpty() -> getString(R.string.no_devices_found)
             else -> getString(R.string.devices_found, devices.size)
         }
+        val showEmpty = devices.isEmpty()
+        emptyState.visibility = if (showEmpty) View.VISIBLE else View.GONE
+        rvResults.visibility = if (showEmpty) View.GONE else View.VISIBLE
+        tvEmpty.setText(if (scanning) R.string.scanning else R.string.scan_empty_hint)
     }
 
     private fun render() {
-        container.removeAllViews()
-        devices.values.sortedByDescending { it.rssi }.forEach { result ->
-            container.addView(makeDeviceButton(result))
+        val list = sortedResults().map { result ->
+            val spoof = findSpoofProfile(result)
+            ScanUiItem(
+                name = result.device.name ?: getString(R.string.unknown_device),
+                address = result.device.address,
+                rssi = result.rssi,
+                protocolLabel = protocolFor(result),
+                spoofable = spoof != null,
+                iconRes = spoof?.let { ProtocolUi.iconFor(it) } ?: R.drawable.ic_bluetooth
+            )
         }
+        adapter.submit(list)
         updateUi()
-    }
-
-    private fun makeDeviceButton(result: ScanResult): MaterialButton {
-        val protocol = protocolFor(result)
-        val name = result.device.name ?: getString(R.string.unknown_device)
-        val label = if (protocol != null) "$name ($protocol)" else name
-        return MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-            text = "$label\n${result.device.address}  ·  ${result.rssi} dBm"
-            isAllCaps = false
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(4) }
-            setOnClickListener { onDeviceTapped(result) }
-        }
     }
 
     private fun onDeviceTapped(result: ScanResult) {
@@ -208,13 +238,13 @@ class ScanActivity : AppCompatActivity() {
         if (record.serviceUuids?.any { it.uuid == FAST_PAIR_UUID.uuid } == true ||
             record.serviceData?.keys?.any { it.uuid == FAST_PAIR_UUID.uuid } == true
         ) {
-            return getString(R.string.protocol_fast_pair)
+            return getString(R.string.protocol_short_fast_pair)
         }
         val data = record.manufacturerSpecificData ?: return null
         return when {
-            data.indexOfKey(0x004C) >= 0 -> getString(R.string.protocol_apple)
-            data.indexOfKey(0x0075) >= 0 -> getString(R.string.protocol_samsung)
-            data.indexOfKey(0x0006) >= 0 -> getString(R.string.protocol_swift)
+            data.indexOfKey(0x004C) >= 0 -> getString(R.string.protocol_short_apple)
+            data.indexOfKey(0x0075) >= 0 -> getString(R.string.protocol_short_samsung)
+            data.indexOfKey(0x0006) >= 0 -> getString(R.string.protocol_short_swift)
             else -> null
         }
     }
@@ -242,8 +272,6 @@ class ScanActivity : AppCompatActivity() {
             else -> null
         }
     }
-
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     companion object {
         private val FAST_PAIR_UUID: ParcelUuid =
